@@ -1,0 +1,10 @@
+{ application,
+  rebar3_build_rpm,
+  [ {description,"Build an rpm from a relx release"},
+    {vsn,"0.0.1"},
+    {modules,[]},
+    {registered,[]},
+    {applications,[kernel,stdlib]},
+    {env,[]}
+  ]
+}.
