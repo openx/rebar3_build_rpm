@@ -31,7 +31,7 @@ do(State) ->
 
   {ok, TarFile} = find_tar_file (State, {Name, Vsn}),
 
-  {ok, PkgConfig} = find_package_config_from_relx (State),
+  {ok, PkgConfig} = find_package_config_from_relx (Name, State),
 
   RootPath = filename:join ([rebar_dir:base_dir(State), "rpm"]),
   % build will represent / on the target system filesystem, in other
@@ -40,8 +40,8 @@ do(State) ->
   BuildPath = filename:join(RootPath, "build"),
 
   % we want to unpack in a prefixed directory then with the release name
-  Prefix = find_in_package_config (prefix, PkgConfig, ["usr","lib64"]),
-  ReleasePath = filename:join ([BuildPath] ++ Prefix ++ [Name]),
+  Prefix = find_in_package_config (prefix, PkgConfig, "usr/lib64"),
+  ReleasePath = filename:join ([BuildPath] ++ [Prefix] ++ [Name]),
   % build that path
   mkdir_p (ReleasePath),
   % untar the release into that directory
@@ -72,22 +72,38 @@ do(State) ->
   % set up dependency args if they exist
   DependsArgs =
     construct_arg_list ("--depends",
-                        find_in_package_config (depends, PkgConfig, [])),
+                        string:tokens(
+                          find_in_package_config (depends, PkgConfig, ""),
+                          ",")),
   % set up path user:group overrides if they exist
   OverridesArgs =
     construct_arg_list ("--user-group-override",
-                        find_in_package_config (overrides, PkgConfig, [])),
+                        string:tokens(
+                          find_in_package_config (overrides, PkgConfig, ""),
+                          ",")),
 
   % construct our package hooks if they exist
   PkgHooks = construct_pkg_hooks (PkgConfig, ReleasePath),
 
+  PkgName = find_in_package_config (name, PkgConfig, Name),
+  PkgVersion = find_in_package_config (version, PkgConfig, Vsn),
+  % check for an environment variable specifying the build number, otherwise
+  % check the pkg.config file, otherwise default to "1"
+  PkgIteration =
+    os:getenv("REBAR3_BUILD_RPM_BUILD_NUMBER",
+              find_in_package_config (iteration, PkgConfig, "1")),
+  PkgArch = "x86_64",
   rebar3_build_rpm_epm:main(
     ["-f",           % overwrite any existing rpm
      "-s", "dir",    % package input type (e.g. directory)
      "-t", "rpm",    % build an rpm
-     "-a", "x86_64", % is there any other?
-     "-n", Name,     % name of package
-     "-v", Vsn,      % version of package
+     "-a", PkgArch, % is there any other?
+     % name of package (defaults to release name)
+     "-n", PkgName,
+     % version of package (defaults to release version)
+     "-v", PkgVersion,
+     % release of the package (defaults to 1)
+     "--iteration", PkgIteration,
      "--url", find_in_package_config (url, PkgConfig, "(unknown)"),
      "--summary", find_in_package_config (summary, PkgConfig, "(unknown)"),
      "--description", find_in_package_config (description, PkgConfig, "(unknown)"),
@@ -101,7 +117,7 @@ do(State) ->
     ++ PkgHooks
     ++ BuildPaths
   ),
-  RpmFile = Name++"-"++Vsn++"-1.x86_64.rpm",
+  RpmFile = PkgName++"-"++PkgVersion++"-"++PkgIteration++"."++PkgArch++".rpm",
   RpmSourcePath = filename:join(BuildPath, RpmFile),
   RpmDestPath = filename:join(RootPath, RpmFile),
   file:rename (RpmSourcePath, RpmDestPath),
@@ -134,23 +150,27 @@ find_tar_file (State, {Name, Vsn}) ->
     _ -> {error, {?MODULE, no_tar_file}}
   end.
 
-find_package_config_from_relx (State) ->
+find_package_config_from_relx (Name, State) ->
   Relx = rebar_state:get(State, relx, []),
   case lists:keyfind (pkg_config, 1, Relx) of
-    {pkg_config, L} when is_list (L) -> {ok, L};
-    false -> {ok, []}
+    {pkg_config, ConfigFile} ->
+      Base = rebar_dir:base_dir(State),
+      % this is just where we expect the config file to be located,
+      % it may or may not be there or break randomly, but hopefully not
+      ConfigFilePath = filename:join ([Base, "rel", Name, ConfigFile]),
+      case file:consult(ConfigFilePath) of
+        {ok, Config} ->
+          {ok, Config};
+        {error, E} -> {error, {?MODULE, E}}
+      end;
+    false ->
+      {error, {?MODULE, no_pkg_config}}
   end.
 
 find_in_package_config (Key, PkgConfig, Default) ->
   case lists:keyfind (Key, 1, PkgConfig) of
     {_, V} -> V;
     false -> Default
-  end.
-
-find_in_package_config_and_set (ConfigKey, PkgConfig, EpmKey) ->
-  case find_in_package_config (ConfigKey, PkgConfig, undefined) of
-    undefined -> [];
-    V -> [EpmKey, V]
   end.
 
 % if the directory list of the form
