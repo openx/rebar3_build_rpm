@@ -62,19 +62,30 @@ do(State) ->
   % at this point we should have a directory layout to match our
   % target system
   file:set_cwd (BuildPath),
-  BuildPaths = ls_dir (BuildPath),
 
-  % remove any paths which don't contain the Name of the release.  This is
-  % probably something which should be made optional, but we'll see if we
-  % ever need to.
-  ExcludePaths = determine_exclude_dirs (BuildPath ++ [$/], Name),
+  % we want to install everything from under / except for the "internal"
+  % directory which is where we have our internal files
+  BuildPaths = lists:delete ("internal", ls_dir (BuildPath)),
+
+  % remove any paths which don't contain the Name of the release, or if given
+  % the service name.  This is probably something which should be made
+  % optional, but we'll see if we ever need to.
+  ExcludePaths =
+    determine_exclude_dirs (BuildPath ++ [$/], [Name] ++
+      case find_in_package_config (service, PkgConfig, undefined) of
+        undefined -> [];
+        Service -> [Service]
+      end
+    ),
   ExcludeArgs = construct_arg_list ("--exclude-dir",ExcludePaths),
+
   % set up dependency args if they exist
   DependsArgs =
     construct_arg_list ("--depends",
                         string:tokens(
                           find_in_package_config (depends, PkgConfig, ""),
                           ",")),
+
   % set up path user:group overrides if they exist
   OverridesArgs =
     construct_arg_list ("--user-group-override",
@@ -83,7 +94,10 @@ do(State) ->
                           ",")),
 
   % construct our package hooks if they exist
-  PkgHooks = construct_pkg_hooks (PkgConfig, ReleasePath),
+  % NOTE: these are based on the assumption that slash/internal was moved
+  % to the top of the build directory.  It's quite possible it could break
+  % if the wrong edit is made to the rebar.config or pkg.config files
+  PkgHooks = construct_pkg_hooks (PkgConfig, BuildPath),
 
   PkgName = find_in_package_config (name, PkgConfig, Name),
   PkgVersion = find_in_package_config (version, PkgConfig, Vsn),
@@ -214,16 +228,26 @@ move_from_slash (SlashPath, DestinationRoot) ->
   ).
 
 % Create a list of paths under Path which don't contain Name
-determine_exclude_dirs (Path, Name) ->
+determine_exclude_dirs (Path, Names) ->
   Excludes =
     rebar3_build_rpm_epm:fold_dir (Path,
                   fun (File, Acc) ->
                     case filelib:is_dir (File) of
                       true ->
                         Relative = remove_prefix (Path, File),
-                        case re:run (Relative, Name, [{capture,none}]) of
-                          match -> Acc;
-                          nomatch -> [Relative | Acc]
+                        case
+                          lists:foldl (fun (Name, Found) ->
+                                         case re:run (Relative, Name, [{capture,none}]) of
+                                           match -> true;
+                                           nomatch -> Found
+                                         end
+                                       end,
+                                       false,
+                                       Names
+                                      )
+                        of
+                          false -> [ Relative | Acc ];
+                          true -> Acc
                         end;
                       false ->
                         Acc
