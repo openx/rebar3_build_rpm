@@ -1,7 +1,7 @@
 { application,
   rebar3_build_rpm,
   [ {description,"Build an rpm from a relx release"},
-    {vsn,"0.0.1"},
+    {vsn,"0.0.3"},
     {modules,[]},
     {registered,[]},
     {applications,[kernel,stdlib]},
