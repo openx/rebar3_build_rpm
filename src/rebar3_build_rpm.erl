@@ -71,12 +71,16 @@ do(State) ->
   % the service name.  This is probably something which should be made
   % optional, but we'll see if we ever need to.
   ExcludePaths =
-    determine_exclude_dirs (BuildPath ++ [$/], [Name] ++
-      case find_in_package_config (service, PkgConfig, undefined) of
-        undefined -> [];
-        Service -> [Service]
-      end
-    ),
+    case string:tokens(find_in_package_config (excludes, PkgConfig, ""),",") of
+      [] ->
+        determine_exclude_dirs (BuildPath ++ [$/], [Name] ++
+          case find_in_package_config (service, PkgConfig, undefined) of
+            undefined -> [];
+            Service -> [Service]
+          end
+        );
+      Excludes -> Excludes
+    end,
   ExcludeArgs = construct_arg_list ("--exclude-dir",ExcludePaths),
 
   % set up dependency args if they exist
@@ -107,30 +111,30 @@ do(State) ->
     os:getenv("REBAR3_BUILD_RPM_BUILD_NUMBER",
               find_in_package_config (iteration, PkgConfig, "1")),
   PkgArch = "x86_64",
-  rebar3_build_rpm_epm:main(
-    ["-f",           % overwrite any existing rpm
-     "-s", "dir",    % package input type (e.g. directory)
-     "-t", "rpm",    % build an rpm
-     "-a", PkgArch, % is there any other?
-     % name of package (defaults to release name)
-     "-n", PkgName,
-     % version of package (defaults to release version)
-     "-v", PkgVersion,
-     % release of the package (defaults to 1)
-     "--iteration", PkgIteration,
-     "--url", find_in_package_config (url, PkgConfig, "(unknown)"),
-     "--summary", find_in_package_config (summary, PkgConfig, "(unknown)"),
-     "--description", find_in_package_config (description, PkgConfig, "(unknown)"),
-     "--vendor", find_in_package_config (vendor, PkgConfig, "(unknown)"),
-     "--license", find_in_package_config (license, PkgConfig, "(unknown)"),
-     "--maintainer", find_in_package_config (maintainer, PkgConfig, "(unknown)")
-    ]
-    ++ DependsArgs
-    ++ OverridesArgs
-    ++ ExcludeArgs
-    ++ PkgHooks
-    ++ BuildPaths
-  ),
+  Args = ["-f",           % overwrite any existing rpm
+          "-s", "dir",    % package input type (e.g. directory)
+          "-t", "rpm",    % build an rpm
+          "-a", PkgArch, % is there any other?
+          % name of package (defaults to release name)
+          "-n", PkgName,
+          % version of package (defaults to release version)
+          "-v", PkgVersion,
+          % release of the package (defaults to 1)
+          "--iteration", PkgIteration,
+          "--url", find_in_package_config (url, PkgConfig, "(unknown)"),
+          "--summary", find_in_package_config (summary, PkgConfig, "(unknown)"),
+          "--description", find_in_package_config (description, PkgConfig, "(unknown)"),
+          "--vendor", find_in_package_config (vendor, PkgConfig, "(unknown)"),
+          "--license", find_in_package_config (license, PkgConfig, "(unknown)"),
+          "--maintainer", find_in_package_config (maintainer, PkgConfig, "(unknown)")
+          ]
+          ++ DependsArgs
+          ++ OverridesArgs
+          ++ ExcludeArgs
+          ++ PkgHooks
+          ++ BuildPaths,
+  rebar_log:log (debug, "packaging with ~p~n",[Args]),
+  rebar3_build_rpm_epm:main(Args),
   RpmFile = PkgName++"-"++PkgVersion++"-"++PkgIteration++"."++PkgArch++".rpm",
   RpmSourcePath = filename:join(BuildPath, RpmFile),
   RpmDestPath = filename:join(RootPath, RpmFile),
