@@ -724,19 +724,19 @@ to_b(I) when is_integer(I) ->
   iolist_to_binary(string:to_lower(lists:flatten(io_lib:format("~8.16.0B", [I])))).
 
 cpio([]) ->
-  cpio_pack("TRAILER!!!", 0, 0, 0);
+  cpio_pack("TRAILER!!!", trailer, 0, 0, 0);
 
 cpio([Path|Paths]) ->
   Rest = cpio(Paths),
   {ok, #file_info{inode = Inode, size = Size, mode = Mode, type = Type}} = file:read_file_info(Path),
   case Type of
     regular ->
-      Pack1 = cpio_pack(<<"/", Path/binary>>, Size, Inode, Mode),
+      Pack1 = cpio_pack(<<"/", Path/binary>>, Type, Size, Inode, Mode),
       Pad2 = binary:copy(<<0>>, cpio_pad4(Size)),
       {ok, Bin} = file:read_file(Path),
       Pack1 ++ [Bin, Pad2] ++ Rest;
     directory ->
-      Pack1 = cpio_pack(<<"/", Path/binary>>, 0, Inode, Mode),
+      Pack1 = cpio_pack(<<"/", Path/binary>>, Type, 0, Inode, Mode),
       Pack1 ++ Rest
   end.
 
@@ -746,10 +746,10 @@ now_s() ->
   {Mega, Sec, _} = os:timestamp(),
   Mega*1000000 + Sec.
 
-cpio_pack(Name, Size, Inode, Mode) ->
+cpio_pack(Name, Type, Size, Inode, Mode) ->
   Nlinks = if
     Inode == 0 -> 0;
-    Size == 0 -> 2;
+    Type == directory -> 2;
     true -> 1
   end,
   Major = case Inode of
