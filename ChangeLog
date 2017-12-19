@@ -1,3 +1,7 @@
+Version 0.0.5 (anthony.molinaro)
+  - Add sha256 digests for file contents
+  - Switch config entries from %config(noreplace) to %config
+
 Version 0.0.4 (david.hull)
   Fix cpio encoding of empty files when creating an RPM.
 

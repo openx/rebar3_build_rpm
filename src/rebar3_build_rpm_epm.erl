@@ -791,10 +791,14 @@ rpm_header(FPM, Addons, Files) ->
     {filesizes, [Size || #file_info{size = Size} <- Infos]},
     {filemodes, {int16, [Mode || #file_info{mode = Mode} <- Infos]}},
     {filemtimes, [utc(Mtime) || #file_info{mtime = Mtime} <- Infos]},
-    {fileflags, [case re:run(F, "etc/") of
-      {match, _} -> 17;  % Here we must put proper flags on configuration files
-      _ -> 2             % Look for typedef enum rpmfileAttrs_e in rpmfi.h
-    end || F <- Files]},
+    % file flag heuristic is, if it's in etc it's a config file, attribute
+    % values are based on
+    % https://github.com/rpm-software-management/rpm/blob/b22f9609d82625ec451d48515d6d318c5bf72d83/lib/rpmfiles.h#L49
+    {fileflags,
+     [ case re:run(F, "etc/") of
+         {match, _} -> 1;  % config
+         _ -> 0            % none (eg, normal file)
+       end || F <- Files ] },
     {fileusername, [determine_user(FPM, F) || F <- Files]},
     {filegroupname, [determine_group(FPM, F) || F <- Files]},
     {filelinktos, [<<>> || _ <- Files]},
@@ -817,6 +821,10 @@ rpm_header(FPM, Addons, Files) ->
     {classdict, [<<>>, <<"file">>]},
     {filedependsx, [0 || _ <- Files]},
     {filedependsn, [0 || _ <- Files]},
+    % digests need to be SHA256 hex strings, then turned into binaries
+    {filedigests, [ list_to_binary(sha256(F)) || F <- Files]},
+    % 8 is the SHA256 algorithm
+    % https://github.com/rpm-software-management/rpm/blob/bdd4365bdf18e1070da6a3a9eb1ba9fab15e9b38/rpmio/rpmpgp.h#L265
     {filedigestalgo, [8]}
   ],
 
@@ -840,9 +848,16 @@ inode(File) ->
   {ok, #file_info{inode = Inode}} = file:read_file_info(File),
   Inode.
 
-
-
-
+sha256(File) ->
+  case file:read_file(File) of
+    {ok, B} ->
+      % https://stackoverflow.com/questions/32475699/how-to-get-sha256-hashed-string-in-erlang
+      [ element(C+1, {$0,$1,$2,$3,$4,$5,$6,$7,$8,$9,$A,$B,$C,$D,$E,$F})
+        || <<C:4>> <= crypto:hash(sha256,B) ];
+    _ ->
+      % directories and other files need a zeroed out hash
+      "0000000000000000000000000000000000000000000000000000000000000000"
+  end.
 
 
 % $$\      $$\           $$\   $$\                     $$\                                 $$\                     
