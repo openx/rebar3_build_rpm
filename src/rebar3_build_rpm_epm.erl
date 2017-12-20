@@ -796,8 +796,8 @@ rpm_header(FPM, Addons, Files) ->
     % https://github.com/rpm-software-management/rpm/blob/b22f9609d82625ec451d48515d6d318c5bf72d83/lib/rpmfiles.h#L49
     {fileflags,
      [ case re:run(F, "etc/") of
-         {match, _} -> 1;  % config
-         _ -> 0            % none (eg, normal file)
+         {match, _} -> 17;  % config(noreplace)
+         _ -> 0             % none (eg, normal file)
        end || F <- Files ] },
     {fileusername, [determine_user(FPM, F) || F <- Files]},
     {filegroupname, [determine_group(FPM, F) || F <- Files]},
@@ -825,7 +825,15 @@ rpm_header(FPM, Addons, Files) ->
     {filedigests, [ list_to_binary(sha256(F)) || F <- Files]},
     % 8 is the SHA256 algorithm
     % https://github.com/rpm-software-management/rpm/blob/bdd4365bdf18e1070da6a3a9eb1ba9fab15e9b38/rpmio/rpmpgp.h#L265
-    {filedigestalgo, [8]}
+    {filedigestalgo, [8]},
+    {fileverifyflags, [  (1 bsl 0)  % file digest
+                       + (1 bsl 1)  % file size
+                       + (1 bsl 3)  % user
+                       + (1 bsl 4)  % group
+                       + (1 bsl 5)  % mtime
+                       + (1 bsl 6)  % mode
+                       || _ <- Files
+                      ]}
   ],
 
   {_,Index0, Data0} = rpm_pack_header(Headers),

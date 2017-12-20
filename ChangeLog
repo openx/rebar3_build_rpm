@@ -1,3 +1,7 @@
+Version 0.0.6 (anthony.molinaro)
+  - Add in fileverifyflags so that rpm -qV works as expected
+  - Switch config entries from %config back to %config(noreplace)
+
 Version 0.0.5 (anthony.molinaro)
   - Add sha256 digests for file contents
   - Switch config entries from %config(noreplace) to %config
