@@ -1,3 +1,7 @@
+Version 0.0.7 (anthony.molinaro)
+  - undo prelink any ELF files found (allows prelinking to occur later and
+    'rpm -q --verify' to still pass).
+
 Version 0.0.6 (anthony.molinaro)
   - Add in fileverifyflags so that rpm -qV works as expected
   - Switch config entries from %config back to %config(noreplace)

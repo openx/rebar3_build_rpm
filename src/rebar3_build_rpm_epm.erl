@@ -537,6 +537,17 @@ rpm(#fpm{paths = Dirs0, output = OutPath, force = Force, name = Name0, version =
 
   % Need to sort files because mapFind will make bsearch to find them
   Files = rpm_load_file_list(Dirs, ExcludeDirs),
+
+  % When erts is included several ELF files are copied from an installed
+  % erlang distribution.  Turns out some rpms when installing will prelink
+  % all executables if not already prelinked.  It then undoes the prelinking
+  % when verifying.  This results in mismatches between installed files
+  % and those in the package if they've already been prelinked in the
+  % package when copied into the release. So this will go through all
+  % the files, and if an ELF file is found will undo the prelink so that
+  % rpm verify will have the right answer.
+  [ maybe_unprelink (F) || F <- Files],
+
   FileSizes = file_sizes (Files),
   UncompressedCPIO = cpio(Files),
   UncompressedCPIOSize = iolist_size (UncompressedCPIO),
@@ -855,6 +866,13 @@ rpm_header(FPM, Addons, Files) ->
 inode(File) ->
   {ok, #file_info{inode = Inode}} = file:read_file_info(File),
   Inode.
+
+maybe_unprelink (File) ->
+  FileOutput = os:cmd(io_lib:format("file ~s",[File])),
+  case re:run (FileOutput, "\\sELF\\s") of
+    {match, _} -> os:cmd(io_lib:format("prelink --undo ~s",[File]));
+    _ -> ok
+  end.
 
 sha256(File) ->
   case file:read_file(File) of
