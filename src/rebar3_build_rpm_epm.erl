@@ -531,7 +531,7 @@ rpm(#fpm{paths = Dirs0, output = OutPath, force = Force, name = Name0, version =
   % cpio required: "etc/flussonic.conf"
   Dirs = lists:map(fun
     ("./" ++ Dir) -> Dir;
-    ("/" ++ _ = Dir) -> error({absoulte_dir_not_allowed,Dir});
+    ("/" ++ _ = Dir) -> error({absolute_dir_not_allowed,Dir});
     (Dir) -> Dir
   end, Dirs0),
 
