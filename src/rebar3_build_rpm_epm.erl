@@ -872,9 +872,12 @@ inode(File) ->
 %% This is needed so that "rpm --verify" will not identify these files as
 %% modified when the RPM is installed on the target system.
 unprelink (Dir) ->
-  Cmd = io_lib:format("find ~s -type f -print0 |"
-                      "xargs -0 -r file -N |"
-                      "perl -n -e 'm/^(.*): ELF / and print \"$1\\0\";' |"
+  Cmd = io_lib:format("find ~s -type f -print |"
+                      "perl -n "
+                      " -e 'chomp;'"
+                      " -e 'open(my $fh, \"<\", $_) or next;'"
+                      " -e 'read($fh, my $s, 4) or next;'"
+                      " -e '$s eq \"\\x7fELF\" and print \"$_\\0\";' |"
                       "xargs -0 -r prelink --undo"
                       ">/dev/null 2>&1",
                       [ shell_quote(Dir) ]),
