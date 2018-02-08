@@ -874,6 +874,13 @@ maybe_unprelink (File) ->
     _ -> ok
   end.
 
+%% @doc Quotes a string so that the shell will interpret it as a single word.
+shell_quote (Str) ->
+  %% Quoting strategy: a'b'c -> 'a'\''b'\''c'; that is, each single quote in
+  %% the input is turned into \' and everything else is quoted with single
+  %% quotes.
+  lists:flatten([ "'", string:join(re:split(Str, "'", [ {return, list} ]), "'\\''"), "'" ]).
+
 sha256(File) ->
   case file:read_file(File) of
     {ok, B} ->
@@ -1231,3 +1238,15 @@ set_scriptlet_env(Name, Version, Script) when is_binary(Script) ->
         Script/binary
     >>;
 set_scriptlet_env(_, _, Script) -> Script.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+shell_quote_test () ->
+  ?assertEqual("'a'", shell_quote("a")),
+  ?assertEqual("'hello world'", shell_quote("hello world")),
+  ?assertEqual("'a'\\''b'\\''c'", shell_quote("a'b'c")),
+  ?assertEqual("'a'\\''b'\\''c'", shell_quote("a'b'c")),
+  ?assertEqual("''\\''a'\\'''", shell_quote("'a'")).
+
+-endif. %% TEST
