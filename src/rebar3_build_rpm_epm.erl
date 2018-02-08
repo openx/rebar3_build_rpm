@@ -531,7 +531,7 @@ rpm(#fpm{paths = Dirs0, output = OutPath, force = Force, name = Name0, version =
   % cpio required: "etc/flussonic.conf"
   Dirs = lists:map(fun
     ("./" ++ Dir) -> Dir;
-    ("/" ++ _ = Dir) -> error({absoulte_dir_not_allowed,Dir});
+    ("/" ++ _ = Dir) -> error({absolute_dir_not_allowed,Dir});
     (Dir) -> Dir
   end, Dirs0),
 
@@ -546,7 +546,7 @@ rpm(#fpm{paths = Dirs0, output = OutPath, force = Force, name = Name0, version =
   % package when copied into the release. So this will go through all
   % the files, and if an ELF file is found will undo the prelink so that
   % rpm verify will have the right answer.
-  [ maybe_unprelink (F) || F <- Files],
+  unprelink("."),
 
   FileSizes = file_sizes (Files),
   UncompressedCPIO = cpio(Files),
@@ -867,12 +867,29 @@ inode(File) ->
   {ok, #file_info{inode = Inode}} = file:read_file_info(File),
   Inode.
 
-maybe_unprelink (File) ->
-  FileOutput = os:cmd(io_lib:format("file ~s",[File])),
-  case re:run (FileOutput, "\\sELF\\s") of
-    {match, _} -> os:cmd(io_lib:format("prelink --undo ~s",[File]));
-    _ -> ok
-  end.
+%% @doc Undoes the prelinking of all ELF files under Dir.
+%%
+%% This is needed so that "rpm --verify" will not identify these files as
+%% modified when the RPM is installed on the target system.
+unprelink (Dir) ->
+  Cmd = io_lib:format("find ~s -type f -print |"
+                      "perl -n "
+                      " -e 'chomp;'"
+                      " -e 'open(my $fh, \"<\", $_) or next;'"
+                      " -e 'read($fh, my $s, 4) or next;'"
+                      " -e '$s eq \"\\x7fELF\" and print \"$_\\0\";' |"
+                      "xargs -0 -r prelink --undo"
+                      ">/dev/null 2>&1",
+                      [ shell_quote(Dir) ]),
+  os:cmd(Cmd),
+  ok.
+
+%% @doc Quotes a string so that the shell will interpret it as a single word.
+shell_quote (Str) ->
+  %% Quoting strategy: a'b'c -> 'a'\''b'\''c'; that is, each single quote in
+  %% the input is turned into \' and everything else is quoted with single
+  %% quotes.
+  lists:flatten([ "'", string:join(re:split(Str, "'", [ {return, list} ]), "'\\''"), "'" ]).
 
 sha256(File) ->
   case file:read_file(File) of
@@ -1231,3 +1248,15 @@ set_scriptlet_env(Name, Version, Script) when is_binary(Script) ->
         Script/binary
     >>;
 set_scriptlet_env(_, _, Script) -> Script.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+shell_quote_test () ->
+  ?assertEqual("'a'", shell_quote("a")),
+  ?assertEqual("'hello world'", shell_quote("hello world")),
+  ?assertEqual("'a'\\''b'\\''c'", shell_quote("a'b'c")),
+  ?assertEqual("'a'\\''b'\\''c'", shell_quote("a'b'c")),
+  ?assertEqual("''\\''a'\\'''", shell_quote("'a'")).
+
+-endif. %% TEST
