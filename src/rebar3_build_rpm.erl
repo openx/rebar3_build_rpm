@@ -1,8 +1,8 @@
 -module (rebar3_build_rpm).
 
-% I don't feel like have a dependency to get the specs and callbacks definitions
-% % but this module implements the provider behavior
-% %-behaviour (provider).
+% I don't feel like having a dependency to get the specs and
+% callbacks definitions, but this module implements the provider behavior
+% -behaviour (provider).
 
 -export ([init/1,
           do/1,
