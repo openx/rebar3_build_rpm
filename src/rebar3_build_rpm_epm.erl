@@ -576,7 +576,10 @@ rpm(#fpm{paths = Dirs0, output = OutPath, force = Force, name = Name0, version =
                               {requireversion, [X || {_, _, X} <- Deps]},
                               {requireflags, [X || {_, X, _} <- Deps]},
                               {size, FileSizes},
-                              {archivesize, UncompressedCPIOSize}
+                              {archivesize, UncompressedCPIOSize},
+                              % add a fake sourcerpm so that older createrepo
+                              % will work
+                              {sourcerpm, <<"none.src.rpm">>}
                              ],
 
   #fpm{pre_install=PreInst,post_install=PostInst,pre_uninstall=PreRm,post_uninstall=PostRm}=FPM,

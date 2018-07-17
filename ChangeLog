@@ -1,3 +1,6 @@
+Version 0.0.9 (anthony.molinar)
+  - Add sourcerpm tag to rpm header so that package will work under Centos5
+
 Version 0.0.8 (david.hull)
   - Optimize unprelink of ELF files.
 

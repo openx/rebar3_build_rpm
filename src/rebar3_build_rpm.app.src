@@ -1,7 +1,7 @@
 { application,
   rebar3_build_rpm,
   [ {description,"Build an rpm from a relx release"},
-    {vsn,"0.0.7"},
+    {vsn, {cmd, "/bin/bash -c 'awk \"match(\\$0, /[0-9]+\\.[0-9]+(\\.[0-9]+)+/){print substr(\\$0, RSTART,RLENGTH); exit}\" ChangeLog'"}},
     {modules,[]},
     {registered,[]},
     {applications,[kernel,stdlib]},
